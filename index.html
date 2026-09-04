@@ -8,7 +8,17 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app" class="app">
+  <header class="site-header">
+    <a class="brand" href="#chat" aria-label="Chat home">NEXUS</a>
+    <nav class="view-switcher" aria-label="Workspace views">
+      <button class="view-tab active" type="button" data-view="chat" aria-controls="chatView" aria-pressed="true">Chats</button>
+      <button class="view-tab" type="button" data-view="tasks" aria-controls="tasksView" aria-pressed="false">Tasks</button>
+    </nav>
+    <div class="header-status">Workspace <span></span></div>
+  </header>
+
+  <main class="view-container">
+  <div id="chatView" class="app" data-view-panel="chat">
     <aside class="sidebar">
       <div class="sidebar-top">
         <h1 class="app-title">Chats</h1>
@@ -68,6 +78,37 @@
       </footer>
     </main>
   </div>
+
+  <section id="tasksView" class="tasks-view" data-view-panel="tasks" hidden>
+    <div class="tasks-heading">
+      <div>
+        <p class="eyebrow">Personal workspace</p>
+        <h1>Task notepad</h1>
+        <p class="tasks-subtitle">Keep the loose ends close to the conversation.</p>
+      </div>
+      <div class="task-count" id="taskCount">0 tasks</div>
+    </div>
+
+    <form class="task-composer" id="taskForm">
+      <div class="composer-label">New note</div>
+      <input type="text" id="taskTitle" placeholder="Task title" autocomplete="off" />
+      <textarea id="taskDescription" placeholder="Write your note or task here..."></textarea>
+      <button class="add-task-btn" type="submit"><span>+</span> Add task</button>
+    </form>
+
+    <div class="task-toolbar">
+      <label class="task-search-wrap">
+        <span class="sr-only">Search tasks</span>
+        <input class="task-search" type="search" id="taskSearch" placeholder="Search tasks..." />
+      </label>
+      <button class="filter-btn active" type="button" data-filter="all">All</button>
+      <button class="filter-btn" type="button" data-filter="open">Open</button>
+      <button class="filter-btn" type="button" data-filter="completed">Done</button>
+    </div>
+
+    <div id="tasks" class="tasks-list"></div>
+  </section>
+  </main>
 
   <script src="script.js"></script>
 </body>

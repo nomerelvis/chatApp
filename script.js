@@ -42,8 +42,39 @@ const messageInput = document.getElementById('messageInput');
 const fileInput = document.getElementById('fileInput');
 const emojiBtn = document.getElementById('emojiBtn');
 const micBtn = document.getElementById('micBtn');
+const viewTabs = document.querySelectorAll('.view-tab');
+const viewPanels = document.querySelectorAll('[data-view-panel]');
+const taskForm = document.getElementById('taskForm');
+const taskTitle = document.getElementById('taskTitle');
+const taskDescription = document.getElementById('taskDescription');
+const taskSearch = document.getElementById('taskSearch');
+const taskCount = document.getElementById('taskCount');
+const tasksContainer = document.getElementById('tasks');
+const filterButtons = document.querySelectorAll('.filter-btn');
 
 let activeUserId = null;
+let activeTaskFilter = 'all';
+let tasks = JSON.parse(localStorage.getItem('chatAppTasks') || '[]');
+
+function setView(view, updateHistory = true){
+  const nextView = view === 'tasks' ? 'tasks' : 'chat';
+  viewPanels.forEach(panel => {
+    panel.hidden = panel.dataset.viewPanel !== nextView;
+  });
+  viewTabs.forEach(tab => {
+    const isActive = tab.dataset.view === nextView;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-pressed', String(isActive));
+  });
+  if (updateHistory && window.location.hash !== `#${nextView}`){
+    window.history.pushState({view: nextView}, '', `#${nextView}`);
+  }
+  if (nextView === 'tasks') renderTasks();
+}
+
+viewTabs.forEach(tab => tab.addEventListener('click', () => setView(tab.dataset.view)));
+window.addEventListener('popstate', () => setView(window.location.hash.slice(1), false));
+window.addEventListener('hashchange', () => setView(window.location.hash.slice(1), false));
 
 // helpers
 function initials(name){
@@ -231,8 +262,101 @@ micBtn.addEventListener('click', ()=>{
   alert('Microphone recording placeholder. Integrate MediaRecorder for recording.');
 });
 
+function saveTasks(){
+  localStorage.setItem('chatAppTasks', JSON.stringify(tasks));
+}
+
+function escapeHTML(text){
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function renderTasks(){
+  const query = taskSearch.value.trim().toLowerCase();
+  const filteredTasks = tasks.filter(task => {
+    const matchesSearch = task.title.toLowerCase().includes(query) || task.description.toLowerCase().includes(query);
+    const matchesFilter = activeTaskFilter === 'all' || (activeTaskFilter === 'completed' ? task.completed : !task.completed);
+    return matchesSearch && matchesFilter;
+  });
+  const completedCount = tasks.filter(task => task.completed).length;
+  taskCount.textContent = `${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}${completedCount ? ` · ${completedCount} done` : ''}`;
+
+  if (!filteredTasks.length){
+    tasksContainer.innerHTML = `<div class="tasks-empty"><strong>No tasks here.</strong><span>Add a note above and keep momentum.</span></div>`;
+    return;
+  }
+
+  tasksContainer.innerHTML = filteredTasks.map(task => `
+    <article class="task-item ${task.completed ? 'completed' : ''}">
+      <div class="task-item-main">
+        <button class="task-check" type="button" data-action="toggle" data-id="${task.id}" aria-label="${task.completed ? 'Mark task open' : 'Mark task complete'}" aria-pressed="${task.completed}">${task.completed ? '✓' : ''}</button>
+        <div class="task-copy">
+          <h2>${escapeHTML(task.title)}</h2>
+          <p>${escapeHTML(task.description) || 'No description'}</p>
+          <time datetime="${task.createdAt}">Added ${escapeHTML(task.date)}</time>
+        </div>
+      </div>
+      <div class="task-actions">
+        <button type="button" data-action="edit" data-id="${task.id}">Edit</button>
+        <button type="button" data-action="delete" data-id="${task.id}">Delete</button>
+      </div>
+    </article>
+  `).join('');
+}
+
+taskForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const title = taskTitle.value.trim();
+  const description = taskDescription.value.trim();
+  if (!title && !description){
+    taskTitle.focus();
+    return;
+  }
+  tasks.unshift({
+    id: Date.now(),
+    title: title || 'Untitled task',
+    description,
+    completed: false,
+    date: new Date().toLocaleString(),
+    createdAt: new Date().toISOString()
+  });
+  saveTasks();
+  taskForm.reset();
+  renderTasks();
+});
+
+taskSearch.addEventListener('input', renderTasks);
+filterButtons.forEach(button => button.addEventListener('click', () => {
+  activeTaskFilter = button.dataset.filter;
+  filterButtons.forEach(filter => filter.classList.toggle('active', filter === button));
+  renderTasks();
+}));
+
+tasksContainer.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-action]');
+  if (!button) return;
+  const id = Number(button.dataset.id);
+  const task = tasks.find(item => item.id === id);
+  if (!task) return;
+
+  if (button.dataset.action === 'toggle') task.completed = !task.completed;
+  if (button.dataset.action === 'delete') tasks = tasks.filter(item => item.id !== id);
+  if (button.dataset.action === 'edit'){
+    const nextTitle = prompt('Edit task title:', task.title);
+    if (nextTitle === null) return;
+    const nextDescription = prompt('Edit note:', task.description);
+    if (nextDescription === null) return;
+    task.title = nextTitle.trim() || 'Untitled task';
+    task.description = nextDescription.trim();
+  }
+  saveTasks();
+  renderTasks();
+});
+
 // init
 renderUsers(users);
 
 // open first chat by default (optional)
 if (users.length) openChat(users[0].id);
+setView(window.location.hash.slice(1) || 'chat', false);
