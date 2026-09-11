@@ -363,7 +363,9 @@ async function loadMessages(conversationId){
 }
 
 function renderRemoteMessage(message){
+  if (message.id && messagesWrap.querySelector(`[data-message-id="${message.id}"]`)) return;
   appendMessageToDOM({
+    id: message.id,
     from: message.sender_id === currentUser.id ? 'me' : 'them',
     text: message.content,
     time: new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
@@ -390,6 +392,7 @@ function subscribeToConversation(conversationId){
 function appendMessageToDOM(message){
   const row = document.createElement('div');
   row.className = 'msg-row ' + (message.from === 'me' ? 'sent' : 'received');
+  if (message.id) row.dataset.messageId = message.id;
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble ' + (message.from === 'me' ? 'sent' : 'received');
@@ -436,17 +439,18 @@ messageInput.addEventListener('keydown', async event => {
   if (!content) return;
 
   messageInput.disabled = true;
-  const {error} = await supabaseClient.from('messages').insert({
+  const {data, error} = await supabaseClient.from('messages').insert({
     conversation_id: activeConversationId,
     sender_id: currentUser.id,
     content
-  });
+  }).select('id, content, sender_id, created_at').single();
   messageInput.disabled = false;
   if (error){
     console.error(error.message);
     contactPresence.textContent = error.message;
     return;
   }
+  if (data) renderRemoteMessage(data);
   messageInput.value = '';
 });
 
@@ -456,12 +460,13 @@ fileInput.addEventListener('change', async e => {
   if (!f || !activeUserId) return;
   const content = `📎 ${f.name}`;
   if (!activeConversationId || !currentUser) return;
-  const {error} = await supabaseClient.from('messages').insert({
+  const {data, error} = await supabaseClient.from('messages').insert({
     conversation_id: activeConversationId,
     sender_id: currentUser.id,
     content
-  });
+  }).select('id, content, sender_id, created_at').single();
   if (error) console.error(error.message);
+  if (data) renderRemoteMessage(data);
   fileInput.value = '';
 });
 
