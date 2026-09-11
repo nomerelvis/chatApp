@@ -48,10 +48,12 @@ function updateAuthMode(nextMode){
 }
 
 function showWorkspace(account){
+  currentUser = account;
   authView.hidden = true;
   siteHeader.hidden = false;
   viewContainer.hidden = false;
   currentUserName.textContent = account.user_metadata?.full_name || account.email;
+  loadContacts();
 }
 
 function showAuth(){
@@ -159,38 +161,11 @@ passwordChangeForm.addEventListener('submit', async event => {
   showAuth();
 });
 
-// Sample data & UI wiring for the chat UI
-const users = [
-  {
-    id: 'u1', name: 'Ava Stone', lastSeen: '2m ago', online: true,
-    preview: 'Hey — did you see the latest design?', lastTime:'11:34 AM', unread: 2, read: true,
-    messages:[
-      {id:1, from:'them', text:'Hey — did you see the latest design?', time:'11:30 AM'},
-      {id:2, from:'me', text:'Yep, looks great! I tweaked spacing.', time:'11:34 AM', status:'read'}
-    ]
-  },
-  {
-    id: 'u2', name: 'Mason Lee', lastSeen: '1h ago', online: false,
-    preview: 'I pushed the update to the branch.', lastTime:'10:02 AM', unread:0, read:true,
-    messages:[
-      {id:1, from:'them', text:'I pushed the update to the branch.', time:'10:02 AM'}
-    ]
-  },
-  {
-    id: 'u3', name: 'Noah Rivera', lastSeen: '5m ago', online: true,
-    preview: 'On a call, brb', lastTime:'9:44 AM', unread:5, read:false,
-    messages:[
-      {id:1, from:'them', text:'On a call, brb', time:'9:44 AM'}
-    ]
-  },
-  {
-    id: 'u4', name: 'Zoe Patel', lastSeen: 'Yesterday', online: false,
-    preview: 'Thanks — that worked.', lastTime:'Mon', unread:0, read:true,
-    messages:[
-      {id:1, from:'them', text:'Thanks — that worked.', time:'Mon'}
-    ]
-  }
-];
+// Supabase-backed chat state
+let currentUser = null;
+let activeConversationId = null;
+let activeChannel = null;
+let users = [];
 
 // caching DOM
 const usersList = document.getElementById('usersList');
@@ -317,21 +292,99 @@ function renderUsers(list){
   });
 }
 
-function openChat(userId){
+async function openChat(userId){
   activeUserId = userId;
   const user = users.find(u=>u.id === userId);
+  if (!user) return;
   contactName.textContent = user.name;
-  contactPresence.textContent = user.online ? 'Online' : `Last seen ${user.lastSeen}`;
+  contactPresence.textContent = 'Conversation';
   chatAvatar.textContent = initials(user.name);
 
-  // render messages
-  messagesWrap.innerHTML = '';
-  user.messages.forEach(m=>{
-    appendMessageToDOM(m);
+  const {data: conversationId, error} = await supabaseClient.rpc('get_or_create_conversation', {
+    other_user_id: userId
   });
+  if (error){
+    messagesWrap.innerHTML = '';
+    contactPresence.textContent = 'Conversation setup required';
+    const notice = document.createElement('p');
+    notice.className = 'auth-message error';
+    notice.textContent = error.message;
+    messagesWrap.appendChild(notice);
+    return;
+  }
+  activeConversationId = conversationId;
+  await loadMessages(activeConversationId);
+  subscribeToConversation(activeConversationId);
+}
 
-  // auto scroll
+async function loadContacts(){
+  if (!currentUser) return;
+  const {data, error} = await supabaseClient
+    .from('profiles')
+    .select('id, full_name')
+    .neq('id', currentUser.id)
+    .order('full_name');
+  if (error){
+    console.error(error.message);
+    return;
+  }
+  users = (data || []).map(profile => ({
+    id: profile.id,
+    name: profile.full_name || 'Unnamed user',
+    lastSeen: '',
+    online: false,
+    preview: 'Start a conversation',
+    lastTime: '',
+    unread: 0,
+    read: false
+  }));
+  renderUsers(users);
+  if (!users.length){
+    contactName.textContent = 'No other users yet';
+    contactPresence.textContent = 'Create another account to start chatting';
+    chatAvatar.textContent = '';
+  }
+}
+
+async function loadMessages(conversationId){
+  const {data, error} = await supabaseClient
+    .from('messages')
+    .select('id, content, sender_id, created_at')
+    .eq('conversation_id', conversationId)
+    .order('created_at', {ascending: true});
+  if (error){
+    console.error(error.message);
+    return;
+  }
+
+  messagesWrap.innerHTML = '';
+  (data || []).forEach(renderRemoteMessage);
   scrollToBottom();
+}
+
+function renderRemoteMessage(message){
+  appendMessageToDOM({
+    from: message.sender_id === currentUser.id ? 'me' : 'them',
+    text: message.content,
+    time: new Date(message.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+    status: 'delivered'
+  });
+}
+
+function subscribeToConversation(conversationId){
+  if (activeChannel) supabaseClient.removeChannel(activeChannel);
+  activeChannel = supabaseClient
+    .channel(`conversation-${conversationId}`)
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'messages',
+      filter: `conversation_id=eq.${conversationId}`
+    }, payload => {
+      renderRemoteMessage(payload.new);
+      scrollToBottom();
+    })
+    .subscribe();
 }
 
 function appendMessageToDOM(message){
@@ -374,40 +427,41 @@ searchInput.addEventListener('input', (e)=>{
   renderUsers(filtered);
 });
 
-// sending message
-messageInput.addEventListener('keydown', (e)=>{
-  if (e.key === 'Enter' && activeUserId){
-    const text = messageInput.value.trim();
-    if (!text) return;
-    const user = users.find(u=>u.id===activeUserId);
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    const msg = {id: Date.now(), from:'me', text, time: timeStr, status:'delivered'};
-    user.messages.push(msg);
-    appendMessageToDOM(msg);
-    messageInput.value = '';
-    scrollToBottom();
+// Send messages through Supabase; realtime renders the inserted row.
+messageInput.addEventListener('keydown', async event => {
+  if (event.key !== 'Enter' || event.shiftKey) return;
+  event.preventDefault();
+  if (!activeConversationId || !currentUser) return;
+  const content = messageInput.value.trim();
+  if (!content) return;
 
-    // simulate read after a short delay
-    setTimeout(()=>{
-      msg.status = 'read';
-      // re-render messages area for ticks update (simple approach)
-      openChat(activeUserId);
-    }, 900);
+  messageInput.disabled = true;
+  const {error} = await supabaseClient.from('messages').insert({
+    conversation_id: activeConversationId,
+    sender_id: currentUser.id,
+    content
+  });
+  messageInput.disabled = false;
+  if (error){
+    console.error(error.message);
+    contactPresence.textContent = error.message;
+    return;
   }
+  messageInput.value = '';
 });
 
 // file/emoji/mic placeholders
-fileInput.addEventListener('change', (e)=>{
+fileInput.addEventListener('change', async e => {
   const f = e.target.files[0];
   if (!f || !activeUserId) return;
-  const user = users.find(u=>u.id===activeUserId);
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-  const msg = {id: Date.now(), from:'me', text:`📎 ${f.name}`, time: timeStr, status:'delivered'};
-  user.messages.push(msg);
-  appendMessageToDOM(msg);
-  scrollToBottom();
+  const content = `📎 ${f.name}`;
+  if (!activeConversationId || !currentUser) return;
+  const {error} = await supabaseClient.from('messages').insert({
+    conversation_id: activeConversationId,
+    sender_id: currentUser.id,
+    content
+  });
+  if (error) console.error(error.message);
   fileInput.value = '';
 });
 
@@ -517,9 +571,6 @@ tasksContainer.addEventListener('click', (event) => {
 
 // init
 renderUsers(users);
-
-// open first chat by default (optional)
-if (users.length) openChat(users[0].id);
 setView(window.location.hash.slice(1) || 'chat', false);
 
 async function restoreSupabaseSession(){
