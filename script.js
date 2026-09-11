@@ -94,7 +94,7 @@ authForm.addEventListener('submit', async event => {
       return;
     }
     if (!data.session){
-      setAuthMessage('Account created. Check your email to confirm it before signing in.', false);
+      setAuthMessage('Email sent. Confirm your email before signing in.', false);
       authSubmit.disabled = false;
       return;
     }
