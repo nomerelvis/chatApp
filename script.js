@@ -1,3 +1,164 @@
+const authView = document.getElementById('authView');
+const authForm = document.getElementById('authForm');
+const authName = document.getElementById('authName');
+const authEmail = document.getElementById('authEmail');
+const authPassword = document.getElementById('authPassword');
+const authConfirm = document.getElementById('authConfirm');
+const authMessage = document.getElementById('authMessage');
+const authSubmit = document.getElementById('authSubmit');
+const currentUserName = document.getElementById('currentUserName');
+const logoutBtn = document.getElementById('logoutBtn');
+const authModeButtons = document.querySelectorAll('[data-auth-mode]');
+const siteHeader = document.querySelector('.site-header');
+const viewContainer = document.querySelector('.view-container');
+const passwordChangeToggle = document.getElementById('passwordChangeToggle');
+const passwordChangeForm = document.getElementById('passwordChangeForm');
+const changeEmail = document.getElementById('changeEmail');
+const currentPassword = document.getElementById('currentPassword');
+const newPassword = document.getElementById('newPassword');
+const newPasswordConfirm = document.getElementById('newPasswordConfirm');
+const passwordChangeMessage = document.getElementById('passwordChangeMessage');
+const SUPABASE_URL = 'https://ydwiyahutxccyzlqltqu.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h1aYxTKYoNbYonkwAD-FYg_U637czRi';
+const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+let authMode = 'signin';
+
+function setAuthMessage(message, isError = true){
+  authMessage.textContent = message;
+  authMessage.classList.toggle('error', isError);
+}
+
+function updateAuthMode(nextMode){
+  authMode = nextMode === 'signup' ? 'signup' : 'signin';
+  const isSignup = authMode === 'signup';
+  document.getElementById('authNameLabel').hidden = !isSignup;
+  authName.hidden = !isSignup;
+  document.getElementById('authConfirmLabel').hidden = !isSignup;
+  authConfirm.hidden = !isSignup;
+  authConfirm.required = isSignup;
+  authPassword.autocomplete = isSignup ? 'new-password' : 'current-password';
+  authSubmit.textContent = isSignup ? 'Create account' : 'Enter workspace';
+  authModeButtons.forEach(button => {
+    const active = button.dataset.authMode === authMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  setAuthMessage('');
+}
+
+function showWorkspace(account){
+  authView.hidden = true;
+  siteHeader.hidden = false;
+  viewContainer.hidden = false;
+  currentUserName.textContent = account.user_metadata?.full_name || account.email;
+}
+
+function showAuth(){
+  authView.hidden = false;
+  siteHeader.hidden = true;
+  viewContainer.hidden = true;
+}
+
+authModeButtons.forEach(button => button.addEventListener('click', () => updateAuthMode(button.dataset.authMode)));
+
+authForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const name = authName.value.trim();
+  const email = authEmail.value.trim().toLowerCase();
+  const password = authPassword.value;
+  authSubmit.disabled = true;
+  setAuthMessage('');
+
+  if (authMode === 'signup'){
+    if (!name){
+      setAuthMessage('Enter your name to continue.');
+      authName.focus();
+      authSubmit.disabled = false;
+      return;
+    }
+    if (password !== authConfirm.value){
+      setAuthMessage('Passwords do not match.');
+      authConfirm.focus();
+      authSubmit.disabled = false;
+      return;
+    }
+    const {data, error} = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {data: {full_name: name}}
+    });
+    if (error){
+      setAuthMessage(error.message);
+      authSubmit.disabled = false;
+      return;
+    }
+    if (!data.session){
+      setAuthMessage('Account created. Check your email to confirm it before signing in.', false);
+      authSubmit.disabled = false;
+      return;
+    }
+    showWorkspace(data.user);
+    authSubmit.disabled = false;
+    return;
+  }
+
+  const {data, error} = await supabaseClient.auth.signInWithPassword({email, password});
+  if (error){
+    setAuthMessage(error.message);
+    authSubmit.disabled = false;
+    return;
+  }
+  showWorkspace(data.user);
+  authSubmit.disabled = false;
+});
+
+logoutBtn.addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+  authForm.reset();
+  updateAuthMode('signin');
+  showAuth();
+});
+
+passwordChangeToggle.addEventListener('click', () => {
+  const isOpen = !passwordChangeForm.hidden;
+  passwordChangeForm.hidden = isOpen;
+  passwordChangeToggle.setAttribute('aria-expanded', String(!isOpen));
+  passwordChangeToggle.textContent = isOpen ? 'Change password' : 'Hide password change';
+  if (isOpen) passwordChangeMessage.textContent = '';
+});
+
+passwordChangeForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const email = changeEmail.value.trim().toLowerCase();
+  const password = currentPassword.value;
+  const {error: signInError} = await supabaseClient.auth.signInWithPassword({email, password});
+
+  if (signInError){
+    passwordChangeMessage.textContent = signInError.message;
+    passwordChangeMessage.classList.add('error');
+    return;
+  }
+  if (newPassword.value !== newPasswordConfirm.value){
+    passwordChangeMessage.textContent = 'New passwords do not match.';
+    passwordChangeMessage.classList.add('error');
+    return;
+  }
+
+  const {error} = await supabaseClient.auth.updateUser({password: newPassword.value});
+  if (error){
+    passwordChangeMessage.textContent = error.message;
+    passwordChangeMessage.classList.add('error');
+    return;
+  }
+  await supabaseClient.auth.signOut();
+  passwordChangeMessage.textContent = 'Password updated. You can sign in now.';
+  passwordChangeMessage.classList.remove('error');
+  authForm.reset();
+  passwordChangeForm.reset();
+  showAuth();
+});
+
 // Sample data & UI wiring for the chat UI
 const users = [
   {
@@ -360,3 +521,28 @@ renderUsers(users);
 // open first chat by default (optional)
 if (users.length) openChat(users[0].id);
 setView(window.location.hash.slice(1) || 'chat', false);
+
+async function restoreSupabaseSession(){
+  if (!supabaseClient){
+    showAuth();
+    setAuthMessage('The Supabase library could not be loaded. Check your internet connection and reload.');
+    return;
+  }
+  const {data, error} = await supabaseClient.auth.getSession();
+  if (error){
+    showAuth();
+    setAuthMessage(error.message);
+    return;
+  }
+  if (data.session?.user) showWorkspace(data.session.user);
+  else showAuth();
+}
+
+if (supabaseClient){
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session?.user) showWorkspace(session.user);
+    if (event === 'SIGNED_OUT') showAuth();
+  });
+}
+
+restoreSupabaseSession();

@@ -59,6 +59,33 @@ body{
 .tasks-heading h1{margin:0; color:#17212b; font-family:Georgia, serif; font-size:clamp(32px, 5vw, 54px); font-weight:500; line-height:1}
 .tasks-subtitle{margin:12px 0 0; color:#66727c; font-size:15px}
 .task-count{color:#66727c; font-size:13px; font-weight:700; white-space:nowrap}
+
+/* Authentication */
+.auth-view{min-height:100vh; display:grid; place-items:center; padding:24px; background:radial-gradient(circle at 15% 15%, rgba(25,118,255,.2), transparent 32%), linear-gradient(145deg,#050608,#071129 58%,#0b1b38)}
+.auth-panel{width:min(100%,440px); padding:38px; border:1px solid rgba(255,255,255,.1); border-radius:16px; background:rgba(11,15,20,.82); box-shadow:0 24px 70px rgba(0,0,0,.42); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px)}
+.auth-kicker{color:#6fa8ff; font-size:11px; font-weight:800; letter-spacing:1.8px; text-transform:uppercase}
+.auth-panel h1{margin:12px 0 8px; color:#fff; font-size:34px; letter-spacing:-.5px}
+.auth-intro{margin:0 0 26px; color:var(--muted); line-height:1.5}
+.auth-mode{display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; margin-bottom:22px; border:1px solid rgba(255,255,255,.08); border-radius:9px; background:rgba(255,255,255,.035)}
+.auth-mode-btn{border:0; border-radius:6px; padding:10px; color:var(--muted); background:transparent; cursor:pointer; font:inherit; font-size:13px; font-weight:700}
+.auth-mode-btn.active{color:#fff; background:#1e72ed}
+.auth-form{display:grid; gap:8px}
+.auth-form label{color:#c5d0df; font-size:12px; font-weight:700}
+.auth-form input{width:100%; margin-bottom:6px; padding:12px 13px; border:1px solid rgba(255,255,255,.11); border-radius:8px; outline:none; color:var(--text); background:rgba(255,255,255,.055); font:inherit}
+.auth-form input:focus{border-color:#418eff; box-shadow:0 0 0 3px rgba(65,142,255,.15)}
+.auth-message{min-height:18px; margin:2px 0 4px; color:#7be0cd; font-size:12px}
+.auth-message.error{color:#ff9b9b}
+.auth-submit{border:0; border-radius:8px; padding:13px; color:#fff; background:linear-gradient(135deg,#0b63ff,#1976ff); cursor:pointer; font:inherit; font-weight:800; box-shadow:0 10px 24px rgba(11,99,255,.25)}
+.password-change-toggle{display:block; margin:16px auto 0; border:0; padding:4px; color:#7faef5; background:transparent; cursor:pointer; font:inherit; font-size:12px; font-weight:700}
+.password-change-toggle:hover{text-decoration:underline}
+.password-change-form{display:grid; gap:8px; margin-top:18px; padding-top:18px; border-top:1px solid rgba(255,255,255,.09)}
+.password-change-heading{margin-bottom:2px; color:#fff; font-size:14px; font-weight:800}
+.password-change-form input{width:100%; margin-bottom:6px; padding:12px 13px; border:1px solid rgba(255,255,255,.11); border-radius:8px; outline:none; color:var(--text); background:rgba(255,255,255,.055); font:inherit}
+.password-change-form input:focus{border-color:#418eff; box-shadow:0 0 0 3px rgba(65,142,255,.15)}
+.auth-note{margin:22px 0 0; color:#6f7c8d; font-size:11px; text-align:center}
+.header-account{display:flex; align-items:center; gap:16px}
+.logout-btn{border:1px solid rgba(255,255,255,.11); border-radius:7px; padding:8px 11px; color:var(--muted); background:transparent; cursor:pointer; font:inherit; font-size:12px; font-weight:700}
+.logout-btn:hover{border-color:rgba(255,255,255,.25); color:#fff}
 .task-composer{display:grid; grid-template-columns:1fr 150px; gap:12px; padding:22px; margin-bottom:22px; border:1px solid #dedbd3; border-radius:10px; background:#fffdf9; box-shadow:0 12px 30px rgba(37,48,48,0.08)}
 .composer-label{grid-column:1 / -1; color:#17212b; font-size:12px; font-weight:800; letter-spacing:1px; text-transform:uppercase}
 .task-composer input,.task-composer textarea,.task-search{width:100%; border:1px solid #d7d9d6; border-radius:7px; padding:12px 13px; color:#17212b; background:#fff; font:inherit; outline:none}

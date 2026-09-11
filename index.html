@@ -8,16 +8,58 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="site-header">
+  <section id="authView" class="auth-view">
+    <div class="auth-panel">
+      <div class="auth-kicker">Private workspace</div>
+      <h1>Welcome to NEXUS</h1>
+      <p class="auth-intro">A focused place for your conversations and daily notes.</p>
+      <div class="auth-mode" role="tablist" aria-label="Account access">
+        <button class="auth-mode-btn active" type="button" data-auth-mode="signin" role="tab" aria-selected="true">Sign in</button>
+        <button class="auth-mode-btn" type="button" data-auth-mode="signup" role="tab" aria-selected="false">Create account</button>
+      </div>
+      <form id="authForm" class="auth-form">
+        <label for="authName" id="authNameLabel" hidden>Full name</label>
+        <input id="authName" type="text" placeholder="Full name" autocomplete="name" hidden />
+        <label for="authEmail">Email address</label>
+        <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required />
+        <label for="authPassword">Password</label>
+        <input id="authPassword" type="password" placeholder="At least 6 characters" autocomplete="current-password" minlength="6" required />
+        <label for="authConfirm" id="authConfirmLabel" hidden>Confirm password</label>
+        <input id="authConfirm" type="password" placeholder="Confirm password" autocomplete="new-password" minlength="6" hidden />
+        <p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
+        <button class="auth-submit" type="submit" id="authSubmit">Enter workspace</button>
+      </form>
+      <button class="password-change-toggle" type="button" id="passwordChangeToggle" aria-expanded="false">Change password</button>
+      <form id="passwordChangeForm" class="password-change-form" hidden>
+        <div class="password-change-heading">Update your password</div>
+        <label for="changeEmail">Email address</label>
+        <input id="changeEmail" type="email" placeholder="you@example.com" autocomplete="email" required />
+        <label for="currentPassword">Current password</label>
+        <input id="currentPassword" type="password" placeholder="Current password" autocomplete="current-password" minlength="6" required />
+        <label for="newPassword">New password</label>
+        <input id="newPassword" type="password" placeholder="At least 6 characters" autocomplete="new-password" minlength="6" required />
+        <label for="newPasswordConfirm">Confirm new password</label>
+        <input id="newPasswordConfirm" type="password" placeholder="Confirm new password" autocomplete="new-password" minlength="6" required />
+        <p id="passwordChangeMessage" class="auth-message" role="status" aria-live="polite"></p>
+        <button class="auth-submit" type="submit">Save new password</button>
+      </form>
+      <p class="auth-note">Accounts are secured by Supabase authentication.</p>
+    </div>
+  </section>
+
+  <header class="site-header" hidden>
     <a class="brand" href="#chat" aria-label="Chat home">NEXUS</a>
     <nav class="view-switcher" aria-label="Workspace views">
       <button class="view-tab active" type="button" data-view="chat" aria-controls="chatView" aria-pressed="true">Chats</button>
       <button class="view-tab" type="button" data-view="tasks" aria-controls="tasksView" aria-pressed="false">Tasks</button>
     </nav>
-    <div class="header-status">Workspace <span></span></div>
+    <div class="header-account">
+      <div class="header-status"><strong id="currentUserName">Workspace</strong> <span></span></div>
+      <button class="logout-btn" type="button" id="logoutBtn">Log out</button>
+    </div>
   </header>
 
-  <main class="view-container">
+  <main class="view-container" hidden>
   <div id="chatView" class="app" data-view-panel="chat">
     <aside class="sidebar">
       <div class="sidebar-top">
@@ -110,6 +152,7 @@
   </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
 </html>
