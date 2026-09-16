@@ -116,6 +116,10 @@ authForm.addEventListener('submit', async event => {
 });
 
 logoutBtn.addEventListener('click', async () => {
+  if (presenceChannel){
+    await supabaseClient.removeChannel(presenceChannel);
+    presenceChannel = null;
+  }
   await supabaseClient.auth.signOut();
   authForm.reset();
   updateAuthMode('signin');
@@ -165,6 +169,7 @@ passwordChangeForm.addEventListener('submit', async event => {
 let currentUser = null;
 let activeConversationId = null;
 let activeChannel = null;
+let presenceChannel = null;
 let users = [];
 
 // caching DOM
@@ -292,12 +297,39 @@ function renderUsers(list){
   });
 }
 
+function updateOnlineUsers(onlineIds){
+  users = users.map(user => ({...user, online: onlineIds.has(user.id)}));
+  const query = searchInput.value.trim().toLowerCase();
+  const visibleUsers = users.filter(user => user.name.toLowerCase().includes(query) || user.preview.toLowerCase().includes(query));
+  renderUsers(visibleUsers);
+
+  if (activeUserId){
+    const activeUser = users.find(user => user.id === activeUserId);
+    if (activeUser) contactPresence.textContent = activeUser.online ? 'Online' : 'Offline';
+  }
+}
+
+function subscribeToPresence(){
+  if (presenceChannel) supabaseClient.removeChannel(presenceChannel);
+
+  presenceChannel = supabaseClient
+    .channel('workspace-presence', {config: {presence: {key: currentUser.id}}})
+    .on('presence', {event: 'sync'}, () => {
+      updateOnlineUsers(new Set(Object.keys(presenceChannel.presenceState())));
+    })
+    .subscribe(async status => {
+      if (status === 'SUBSCRIBED'){
+        await presenceChannel.track({online_at: new Date().toISOString()});
+      }
+    });
+}
+
 async function openChat(userId){
   activeUserId = userId;
   const user = users.find(u=>u.id === userId);
   if (!user) return;
   contactName.textContent = user.name;
-  contactPresence.textContent = 'Conversation';
+  contactPresence.textContent = user.online ? 'Online' : 'Offline';
   chatAvatar.textContent = initials(user.name);
 
   const {data: conversationId, error} = await supabaseClient.rpc('get_or_create_conversation', {
@@ -339,6 +371,7 @@ async function loadContacts(){
     read: false
   }));
   renderUsers(users);
+  subscribeToPresence();
   if (!users.length){
     contactName.textContent = 'No other users yet';
     contactPresence.textContent = 'Create another account to start chatting';
