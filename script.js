@@ -1,6 +1,7 @@
 const authView = document.getElementById('authView');
 const authForm = document.getElementById('authForm');
 const authName = document.getElementById('authName');
+const authUsername = document.getElementById('authUsername');
 const authEmail = document.getElementById('authEmail');
 const authPassword = document.getElementById('authPassword');
 const authConfirm = document.getElementById('authConfirm');
@@ -34,6 +35,10 @@ function updateAuthMode(nextMode){
   const isSignup = authMode === 'signup';
   document.getElementById('authNameLabel').hidden = !isSignup;
   authName.hidden = !isSignup;
+  authName.required = isSignup;
+  document.getElementById('authUsernameLabel').hidden = !isSignup;
+  authUsername.hidden = !isSignup;
+  authUsername.required = isSignup;
   document.getElementById('authConfirmLabel').hidden = !isSignup;
   authConfirm.hidden = !isSignup;
   authConfirm.required = isSignup;
@@ -47,12 +52,48 @@ function updateAuthMode(nextMode){
   setAuthMessage('');
 }
 
+async function checkUsernameAvailability(username){
+  const normalized = username.trim().toLowerCase();
+  if (!normalized || normalized.length < 3){
+    authUsername.setCustomValidity('Username must be at least 3 characters.');
+    return false;
+  }
+  if (!/^[a-z0-9._-]+$/.test(normalized)){
+    authUsername.setCustomValidity('Use only letters, numbers, dots, underscores, and dashes.');
+    return false;
+  }
+
+  const {data, error} = await supabaseClient
+    .from('profiles')
+    .select('id')
+    .eq('username', normalized)
+    .maybeSingle();
+
+  if (error){
+    setAuthMessage(error.message);
+    authUsername.setCustomValidity(error.message);
+    return false;
+  }
+
+  const taken = Boolean(data);
+  authUsername.setCustomValidity(taken ? 'This username is already taken.' : '');
+  if (taken){
+    setAuthMessage('That username is already taken.', true);
+    return false;
+  }
+
+  setAuthMessage('Username available.', false);
+  return true;
+}
+
 function showWorkspace(account){
   currentUser = account;
   authView.hidden = true;
   siteHeader.hidden = false;
   viewContainer.hidden = false;
-  currentUserName.textContent = account.user_metadata?.full_name || account.email;
+  const username = account.user_metadata?.username;
+  const fullName = account.user_metadata?.full_name;
+  currentUserName.textContent = username ? `@${username}` : (fullName || account.email);
   loadContacts();
 }
 
@@ -63,10 +104,20 @@ function showAuth(){
 }
 
 authModeButtons.forEach(button => button.addEventListener('click', () => updateAuthMode(button.dataset.authMode)));
+authUsername.addEventListener('input', async () => {
+  if (authMode !== 'signup') return;
+  const username = authUsername.value.trim();
+  if (!username) {
+    setAuthMessage('');
+    return;
+  }
+  await checkUsernameAvailability(username);
+});
 
 authForm.addEventListener('submit', async event => {
   event.preventDefault();
   const name = authName.value.trim();
+  const username = authUsername.value.trim().toLowerCase();
   const email = authEmail.value.trim().toLowerCase();
   const password = authPassword.value;
   authSubmit.disabled = true;
@@ -79,6 +130,18 @@ authForm.addEventListener('submit', async event => {
       authSubmit.disabled = false;
       return;
     }
+    if (!username){
+      setAuthMessage('Choose a username to continue.');
+      authUsername.focus();
+      authSubmit.disabled = false;
+      return;
+    }
+    const usernameAvailable = await checkUsernameAvailability(username);
+    if (!usernameAvailable){
+      authUsername.focus();
+      authSubmit.disabled = false;
+      return;
+    }
     if (password !== authConfirm.value){
       setAuthMessage('Passwords do not match.');
       authConfirm.focus();
@@ -88,7 +151,7 @@ authForm.addEventListener('submit', async event => {
     const {data, error} = await supabaseClient.auth.signUp({
       email,
       password,
-      options: {data: {full_name: name}}
+      options: {data: {full_name: name, username}}
     });
     if (error){
       setAuthMessage(error.message);
@@ -183,8 +246,17 @@ const messageInput = document.getElementById('messageInput');
 const fileInput = document.getElementById('fileInput');
 const emojiBtn = document.getElementById('emojiBtn');
 const micBtn = document.getElementById('micBtn');
+const sendBtn = document.getElementById('sendBtn');
+const menuBtn = document.getElementById('menuBtn');
+const chatMenu = document.getElementById('chatMenu');
+const clearChatsBtn = document.getElementById('clearChatsBtn');
+const profilePictureBtn = document.getElementById('profilePictureBtn');
+const profilePictureInput = document.getElementById('profilePictureInput');
 const viewTabs = document.querySelectorAll('.view-tab');
 const viewPanels = document.querySelectorAll('[data-view-panel]');
+const sidebarToggle = document.getElementById('sidebarToggle');
+const themeToggle = document.getElementById('themeToggle');
+const emojiPicker = document.getElementById('emojiPicker');
 const taskForm = document.getElementById('taskForm');
 const taskTitle = document.getElementById('taskTitle');
 const taskDescription = document.getElementById('taskDescription');
@@ -196,6 +268,104 @@ const filterButtons = document.querySelectorAll('.filter-btn');
 let activeUserId = null;
 let activeTaskFilter = 'all';
 let tasks = JSON.parse(localStorage.getItem('chatAppTasks') || '[]');
+
+function closeChatMenu(){
+  chatMenu.hidden = true;
+  menuBtn.setAttribute('aria-expanded', 'false');
+}
+
+menuBtn.addEventListener('click', event => {
+  event.stopPropagation();
+  chatMenu.hidden = !chatMenu.hidden;
+  menuBtn.setAttribute('aria-expanded', String(!chatMenu.hidden));
+});
+
+sidebarToggle.addEventListener('click', () => {
+  const isOpen = document.body.classList.toggle('sidebar-open');
+  sidebarToggle.setAttribute('aria-expanded', String(isOpen));
+});
+
+document.addEventListener('click', event => {
+  if (!chatMenu.contains(event.target) && event.target !== menuBtn) closeChatMenu();
+  if (!event.target.closest('.sidebar') && !event.target.closest('#sidebarToggle')) {
+    document.body.classList.remove('sidebar-open');
+    sidebarToggle.setAttribute('aria-expanded', 'false');
+  }
+});
+
+const savedTheme = localStorage.getItem('nexusTheme') || 'dark';
+document.body.classList.toggle('theme-light', savedTheme === 'light');
+themeToggle.setAttribute('aria-pressed', String(savedTheme === 'light'));
+themeToggle.textContent = savedTheme === 'light' ? '☀️' : '🌙';
+
+themeToggle.addEventListener('click', () => {
+  const isLight = document.body.classList.toggle('theme-light');
+  const nextTheme = isLight ? 'light' : 'dark';
+  localStorage.setItem('nexusTheme', nextTheme);
+  themeToggle.setAttribute('aria-pressed', String(isLight));
+  themeToggle.textContent = isLight ? '☀️' : '🌙';
+});
+
+clearChatsBtn.addEventListener('click', async () => {
+  closeChatMenu();
+  if (!currentUser) return;
+  if (!window.confirm('Clear all your chats permanently? This cannot be undone.')) return;
+
+  clearChatsBtn.disabled = true;
+  const {error} = await supabaseClient.rpc('clear_user_chats');
+  clearChatsBtn.disabled = false;
+  if (error){
+    contactPresence.textContent = error.message;
+    return;
+  }
+
+  activeConversationId = null;
+  activeUserId = null;
+  messagesWrap.innerHTML = '';
+  contactName.textContent = 'Select a chat';
+  contactPresence.textContent = 'Offline';
+  chatAvatar.textContent = '';
+});
+
+profilePictureBtn.addEventListener('click', () => {
+  closeChatMenu();
+  profilePictureInput.click();
+});
+
+profilePictureInput.addEventListener('change', async event => {
+  const file = event.target.files[0];
+  if (!file || !currentUser) return;
+  if (!file.type.startsWith('image/')) return;
+
+  profilePictureBtn.disabled = true;
+  const extension = file.name.split('.').pop().toLowerCase() || 'jpg';
+  const filePath = `${currentUser.id}/profile.${extension}`;
+  const {error: uploadError} = await supabaseClient.storage
+    .from('avatars')
+    .upload(filePath, file, {upsert: true, contentType: file.type});
+
+  if (uploadError){
+    contactPresence.textContent = uploadError.message;
+    profilePictureBtn.disabled = false;
+    profilePictureInput.value = '';
+    return;
+  }
+
+  const {data: publicUrlData} = supabaseClient.storage.from('avatars').getPublicUrl(filePath);
+  const avatarUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+  const {error: profileError} = await supabaseClient
+    .from('profiles')
+    .update({avatar_url: avatarUrl})
+    .eq('id', currentUser.id);
+
+  profilePictureBtn.disabled = false;
+  profilePictureInput.value = '';
+  if (profileError){
+    contactPresence.textContent = profileError.message;
+    return;
+  }
+  contactPresence.textContent = 'Profile picture updated';
+});
 
 function setView(view, updateHistory = true){
   const nextView = view === 'tasks' ? 'tasks' : 'chat';
@@ -232,7 +402,14 @@ function renderUsers(list){
     // avatar
     const avatar = document.createElement('div');
     avatar.className = 'avatar';
-    avatar.textContent = initials(u.name);
+    if (u.avatarUrl){
+      avatar.style.backgroundImage = `url("${u.avatarUrl}")`;
+      avatar.style.backgroundSize = 'cover';
+      avatar.style.backgroundPosition = 'center';
+      avatar.textContent = '';
+    } else {
+      avatar.textContent = initials(u.name);
+    }
 
     const status = document.createElement('div');
     status.className = 'status-dot';
@@ -328,9 +505,12 @@ async function openChat(userId){
   activeUserId = userId;
   const user = users.find(u=>u.id === userId);
   if (!user) return;
-  contactName.textContent = user.name;
+  contactName.textContent = user.fullName && user.username ? `${user.fullName} (@${user.username})` : (user.username ? `@${user.username}` : user.fullName || 'Unnamed user');
   contactPresence.textContent = user.online ? 'Online' : 'Offline';
-  chatAvatar.textContent = initials(user.name);
+  chatAvatar.textContent = user.avatarUrl ? '' : initials(user.fullName || user.username || 'User');
+  chatAvatar.style.backgroundImage = user.avatarUrl ? `url("${user.avatarUrl}")` : '';
+  chatAvatar.style.backgroundSize = user.avatarUrl ? 'cover' : '';
+  chatAvatar.style.backgroundPosition = user.avatarUrl ? 'center' : '';
 
   const {data: conversationId, error} = await supabaseClient.rpc('get_or_create_conversation', {
     other_user_id: userId
@@ -353,16 +533,19 @@ async function loadContacts(){
   if (!currentUser) return;
   const {data, error} = await supabaseClient
     .from('profiles')
-    .select('id, full_name')
+    .select('id, full_name, username, avatar_url')
     .neq('id', currentUser.id)
-    .order('full_name');
+    .order('username');
   if (error){
     console.error(error.message);
     return;
   }
   users = (data || []).map(profile => ({
     id: profile.id,
-    name: profile.full_name || 'Unnamed user',
+    fullName: profile.full_name || 'Unnamed user',
+    username: profile.username || '',
+    name: profile.username ? `@${profile.username}` : (profile.full_name || 'Unnamed user'),
+    avatarUrl: profile.avatar_url || '',
     lastSeen: '',
     online: false,
     preview: 'Start a conversation',
@@ -456,6 +639,15 @@ function scrollToBottom(){
   messagesWrap.scrollTop = messagesWrap.scrollHeight;
 }
 
+function showEmptyChatState(message = 'Select a chat to start messaging.'){
+  messagesWrap.innerHTML = `
+    <div class="tasks-empty" style="margin:auto; max-width:420px; background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.12); color:var(--muted);">
+      <strong style="color:#fff;">${escapeHTML(message)}</strong>
+      <span>Choose a contact from the left and send the first message.</span>
+    </div>
+  `;
+}
+
 // search filtering
 searchInput.addEventListener('input', (e)=>{
   const q = e.target.value.trim().toLowerCase();
@@ -463,10 +655,7 @@ searchInput.addEventListener('input', (e)=>{
   renderUsers(filtered);
 });
 
-// Send messages through Supabase; realtime renders the inserted row.
-messageInput.addEventListener('keydown', async event => {
-  if (event.key !== 'Enter' || event.shiftKey) return;
-  event.preventDefault();
+async function sendCurrentMessage(){
   if (!activeConversationId || !currentUser) return;
   const content = messageInput.value.trim();
   if (!content) return;
@@ -485,6 +674,18 @@ messageInput.addEventListener('keydown', async event => {
   }
   if (data) renderRemoteMessage(data);
   messageInput.value = '';
+  messageInput.focus();
+}
+
+// Send messages through Supabase; realtime renders the inserted row.
+messageInput.addEventListener('keydown', async event => {
+  if (event.key !== 'Enter' || event.shiftKey) return;
+  event.preventDefault();
+  await sendCurrentMessage();
+});
+
+sendBtn.addEventListener('click', async () => {
+  await sendCurrentMessage();
 });
 
 // file/emoji/mic placeholders
@@ -503,11 +704,27 @@ fileInput.addEventListener('change', async e => {
   fileInput.value = '';
 });
 
-emojiBtn.addEventListener('click', ()=>{
-  // small emoji picker placeholder
+emojiBtn.addEventListener('click', () => {
   if (!activeUserId) return;
-  messageInput.value = (messageInput.value || '') + ' 🙂';
+  emojiPicker.hidden = !emojiPicker.hidden;
+  if (!emojiPicker.hidden) messageInput.focus();
+});
+
+emojiPicker.addEventListener('click', event => {
+  const button = event.target.closest('[data-emoji]');
+  if (!button) return;
+  const emoji = button.dataset.emoji;
+  const currentValue = messageInput.value || '';
+  messageInput.value = `${currentValue}${emoji}`;
+  emojiPicker.hidden = true;
   messageInput.focus();
+  messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+});
+
+document.addEventListener('click', event => {
+  if (!event.target.closest('#emojiBtn') && !event.target.closest('.emoji-picker')) {
+    emojiPicker.hidden = true;
+  }
 });
 
 micBtn.addEventListener('click', ()=>{
@@ -609,6 +826,7 @@ tasksContainer.addEventListener('click', (event) => {
 
 // init
 renderUsers(users);
+showEmptyChatState();
 setView(window.location.hash.slice(1) || 'chat', false);
 
 async function restoreSupabaseSession(){

@@ -20,6 +20,8 @@
       <form id="authForm" class="auth-form">
         <label for="authName" id="authNameLabel" hidden>Full name</label>
         <input id="authName" type="text" placeholder="Full name" autocomplete="name" hidden />
+        <label for="authUsername" id="authUsernameLabel" hidden>Username</label>
+        <input id="authUsername" type="text" placeholder="Choose a username" autocomplete="username" minlength="3" maxlength="20" pattern="[a-zA-Z0-9._-]+" hidden />
         <label for="authEmail">Email address</label>
         <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required />
         <label for="authPassword">Password</label>
@@ -48,13 +50,17 @@
   </section>
 
   <header class="site-header" hidden>
-    <a class="brand" href="#chat" aria-label="Chat home">NEXUS</a>
+    <div class="header-left">
+      <button class="sidebar-toggle" type="button" id="sidebarToggle" aria-label="Toggle contact list" aria-expanded="false">Contacts</button>
+      <a class="brand" href="#chat" aria-label="Chat home">NEXUS</a>
+    </div>
     <nav class="view-switcher" aria-label="Workspace views">
       <button class="view-tab active" type="button" data-view="chat" aria-controls="chatView" aria-pressed="true">Chats</button>
       <button class="view-tab" type="button" data-view="tasks" aria-controls="tasksView" aria-pressed="false">Tasks</button>
     </nav>
     <div class="header-account">
       <div class="header-status"><strong id="currentUserName">Workspace</strong> <span></span></div>
+      <button class="theme-toggle" type="button" id="themeToggle" aria-label="Toggle theme" aria-pressed="false">🌙</button>
       <button class="logout-btn" type="button" id="logoutBtn">Log out</button>
     </div>
   </header>
@@ -89,9 +95,16 @@
             <!-- call SVG -->
             <svg viewBox="0 0 24 24"><path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.72 11.72 0 0 0 3.68.59 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h2.5a1 1 0 0 1 1 1 11.72 11.72 0 0 0 .59 3.68 1 1 0 0 1-.24 1.01z"/></svg>
           </button>
-          <button class="action-btn" title="Menu" id="menuBtn">
+          <button class="action-btn" title="Menu" id="menuBtn" aria-label="Open chat menu" aria-expanded="false" aria-controls="chatMenu">
             <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 8a2 2 0 1 0 .001-3.999A2 2 0 0 0 12 8zm0 3a2 2 0 1 0 .001 3.999A2 2 0 0 0 12 11zm0 6a2 2 0 1 0 .001 3.999A2 2 0 0 0 12 17z"/></svg>
           </button>
+          <div class="chat-menu-wrap">
+            <div id="chatMenu" class="chat-menu" hidden>
+              <button type="button" id="clearChatsBtn">Clear chats</button>
+              <button type="button" id="profilePictureBtn">Add profile picture</button>
+              <input id="profilePictureInput" type="file" accept="image/*" hidden />
+            </div>
+          </div>
         </div>
       </header>
 
@@ -100,6 +113,18 @@
       </section>
 
       <footer class="message-input-area">
+        <div id="emojiPicker" class="emoji-picker" hidden>
+          <button type="button" data-emoji="🙂">🙂</button>
+          <button type="button" data-emoji="😊">😊</button>
+          <button type="button" data-emoji="😂">😂</button>
+          <button type="button" data-emoji="😍">😍</button>
+          <button type="button" data-emoji="🔥">🔥</button>
+          <button type="button" data-emoji="🎉">🎉</button>
+          <button type="button" data-emoji="👍">👍</button>
+          <button type="button" data-emoji="❤️">❤️</button>
+          <button type="button" data-emoji="💡">💡</button>
+          <button type="button" data-emoji="✅">✅</button>
+        </div>
         <div class="input-wrap">
           <input id="messageInput" type="text" placeholder="Type a message..." />
           <div class="input-icons">
@@ -108,12 +133,16 @@
               <svg viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 6.5L9 14a4 4 0 1 1-5.66-5.66L9 2.69a6 6 0 1 1 8.48 8.48L11.5 17.17"/></svg>
             </label>
 
-            <button id="emojiBtn" class="icon-btn" title="Emoji">
+            <button id="emojiBtn" class="icon-btn" type="button" title="Emoji">
               <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20zm-4-8a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-8.07 3.24a6 6 0 0 0 8.14 0 1 1 0 0 0-1.28-1.54 4 4 0 0 1-5.58 0 1 1 0 0 0-1.28 1.54z"/></svg>
             </button>
 
-            <button id="micBtn" class="icon-btn" title="Record">
+            <button id="micBtn" class="icon-btn" type="button" title="Record">
               <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 14 0h-2zM11 19h2v3h-2z"/></svg>
+            </button>
+
+            <button id="sendBtn" class="icon-btn send-btn" type="button" title="Send message" aria-label="Send message">
+              <svg viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
           </div>
         </div>
