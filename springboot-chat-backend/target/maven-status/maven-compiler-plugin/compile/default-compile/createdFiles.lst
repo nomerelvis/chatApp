@@ -1,0 +1,4 @@
+com\nexus\chat\ChatBackendApplication.class
+com\nexus\chat\config\WebSocketConfig.class
+com\nexus\chat\model\ChatMessage.class
+com\nexus\chat\controller\ChatController.class
